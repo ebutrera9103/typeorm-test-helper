@@ -1,103 +1,85 @@
 import { DataSource } from 'typeorm';
 import path from 'path';
 
+interface StorageConfig {
+    config: any;
+    databaseType: 'postgres' | 'mysql' | 'mariadb' | 'sqlite' | 'mssql' | 'oracle';
+    entities: Function[];
+    systemDatabase: string;
+    migrationsPath: string;
+}
+
 class StorageBuilder<T> {
-    private systemDataSource!: DataSource;
-    private appDataSource!: DataSource;
-    private storageService: T;
+    private systemDataSources: DataSource[] = [];
+    private appDataSources: DataSource[] = [];
+    private storageServices: T[] = [];
     private dbName: string;
-    private databaseConfig: any;
-    private systemDatabase: string;
+    private databaseConfigs: StorageConfig[];
 
     constructor(
         private storageServiceConstructor: new (dataSource: DataSource, config: any) => T,
-        private config: any,
-        private databaseType: 'postgres' | 'mysql' | 'mariadb' | 'sqlite' | 'mssql' | 'oracle',
-        private entities: Function[],
-        private migrationsPath: string,
-        systemDatabase?: string
-        ) {
-        this.storageService = {} as T;
+        databaseConfigs: StorageConfig[]
+    ) {
         this.dbName = 'test_' + Date.now();
-        this.databaseConfig = config;
-        this.systemDatabase = systemDatabase || this.getDefaultSystemDatabase();
-
+        this.databaseConfigs = databaseConfigs;
     }
 
     async setup() {
-        this.systemDataSource = new DataSource({
-			type: this.databaseType,
-			host: this.databaseConfig.host,
-			port: this.databaseConfig.port,
-			username: this.databaseConfig.username,
-			password: this.databaseConfig.password,
-			database: this.systemDatabase, // system database
-		});
-		await this.systemDataSource.initialize();
-		await this.systemDataSource.query(`CREATE DATABASE ${this.dbName};`);
-		await this.systemDataSource.destroy();
+        for (const databaseConfig of this.databaseConfigs) {
+            const systemDataSource = new DataSource({
+                type: databaseConfig.databaseType,
+                host: databaseConfig.config.host,
+                port: databaseConfig.config.port,
+                username: databaseConfig.config.username,
+                password: databaseConfig.config.password,
+                database: databaseConfig.systemDatabase,
+            });
+            await systemDataSource.initialize();
+            await systemDataSource.query(`CREATE DATABASE ${this.dbName};`);
+            await systemDataSource.destroy();
 
-        this.appDataSource = new DataSource({
-            type: this.databaseType,
-            host: this.databaseConfig.host,
-            port: this.databaseConfig.port,
-            username: this.databaseConfig.username,
-            password: this.databaseConfig.password,
-            database: this.dbName,
-            entities: this.entities,
-            migrations: [path.join(this.migrationsPath, '*{.ts,.js}')],
-            synchronize: false,
-            migrationsRun: true,
-        });
-        await this.appDataSource.initialize();
-        this.storageService = new this.storageServiceConstructor(this.appDataSource, this.config);
+            // Now connect to our new test database
+            const appDataSource = new DataSource({
+                type: databaseConfig.databaseType,
+                host: databaseConfig.config.host,
+                port: databaseConfig.config.port,
+                username: databaseConfig.config.username,
+                password: databaseConfig.config.password,
+                database: this.dbName,
+                entities: databaseConfig.entities,
+                migrations: [path.join(__dirname, databaseConfig.migrationsPath)],
+                synchronize: false,
+                migrationsRun: true,
+            });
+            await appDataSource.initialize();
+            const storageService = new this.storageServiceConstructor(appDataSource, databaseConfig.config);
+
+            // Store these instances for later use
+            this.systemDataSources.push(systemDataSource);
+            this.appDataSources.push(appDataSource);
+            this.storageServices.push(storageService);
+        }
     }
 
     async teardown() {
-		// Close the DataSource and delete the test database
-		try {
-			await this.appDataSource.destroy();
-		} catch (error) {
-			console.error('Error destroying AppDataSource', error);
-		}
-		const systemDataSource = new DataSource({
-			type: this.databaseType,
-			host: this.databaseConfig.host,
-			port: this.databaseConfig.port,
-			username: this.databaseConfig.username,
-			password: this.databaseConfig.password,
-			database: this.systemDatabase, // system database
-		});
-		await systemDataSource.initialize();
-		await systemDataSource.query(`DROP DATABASE ${this.dbName};`);
-		await systemDataSource.destroy();
-	}
-
-	getStorageService() {
-		return this.storageService;
-	}
-
-	getAppDataSource() {
-		return this.appDataSource;
-	}
-
-    /**
-     * UTILS
-     */
-
-    // Method to get the default system database based on database type
-    private getDefaultSystemDatabase(): string {
-        switch(this.databaseType) {
-            case 'postgres':
-                return 'postgres';
-            case 'mysql':
-            case 'mariadb':
-                return 'mysql';
-            case 'oracle':
-                return 'sys';
-            default:
-                throw new Error(`Unsupported database type: ${this.databaseType}`);
+        for (let i = 0; i < this.systemDataSources.length; i++) {
+            try {
+                await this.appDataSources[i].destroy();
+            } catch (error) {
+                console.error('Error destroying AppDataSource', error);
+            }
+            await this.systemDataSources[i].initialize();
+            await this.systemDataSources[i].query(`DROP DATABASE ${this.dbName};`);
+            await this.systemDataSources[i].destroy();
         }
+    }
+
+    getStorageServices() {
+        return this.storageServices;
+    }
+
+    getAppDataSources() {
+        return this.appDataSources;
     }
 }
 
