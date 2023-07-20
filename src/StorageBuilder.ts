@@ -7,33 +7,36 @@ class StorageBuilder<T> {
     private storageService: T;
     private dbName: string;
     private databaseConfig: any;
+    private systemDatabase: string;
 
     constructor(
         private storageServiceConstructor: new (dataSource: DataSource, config: any) => T,
         private config: any,
         private databaseType: 'postgres' | 'mysql' | 'mariadb' | 'sqlite' | 'mssql' | 'oracle',
-        private entities: Function[], // Use Function type to represent entity classes
-    ) {
+        private entities: Function[],
+        private migrationsPath: string,
+        systemDatabase?: string
+        ) {
         this.storageService = {} as T;
         this.dbName = 'test_' + Date.now();
         this.databaseConfig = config;
+        this.systemDatabase = systemDatabase || this.getDefaultSystemDatabase();
 
     }
 
     async setup() {
         this.systemDataSource = new DataSource({
-			type: 'postgres',
+			type: this.databaseType,
 			host: this.databaseConfig.host,
 			port: this.databaseConfig.port,
 			username: this.databaseConfig.username,
 			password: this.databaseConfig.password,
-			database: 'postgres', // system database
+			database: this.systemDatabase, // system database
 		});
 		await this.systemDataSource.initialize();
 		await this.systemDataSource.query(`CREATE DATABASE ${this.dbName};`);
 		await this.systemDataSource.destroy();
 
-        // Now connect to our new test database
         this.appDataSource = new DataSource({
             type: this.databaseType,
             host: this.databaseConfig.host,
@@ -41,8 +44,8 @@ class StorageBuilder<T> {
             username: this.databaseConfig.username,
             password: this.databaseConfig.password,
             database: this.dbName,
-            entities: this.entities, // Use the entities array passed to the constructor
-            migrations: [path.join(__dirname, '../../src/storage/migrations/*{.ts,.js}')],
+            entities: this.entities,
+            migrations: [path.join(this.migrationsPath, '*{.ts,.js}')],
             synchronize: false,
             migrationsRun: true,
         });
@@ -58,12 +61,12 @@ class StorageBuilder<T> {
 			console.error('Error destroying AppDataSource', error);
 		}
 		const systemDataSource = new DataSource({
-			type: 'postgres',
+			type: this.databaseType,
 			host: this.databaseConfig.host,
 			port: this.databaseConfig.port,
 			username: this.databaseConfig.username,
 			password: this.databaseConfig.password,
-			database: 'postgres', // system database
+			database: this.systemDatabase, // system database
 		});
 		await systemDataSource.initialize();
 		await systemDataSource.query(`DROP DATABASE ${this.dbName};`);
@@ -77,6 +80,25 @@ class StorageBuilder<T> {
 	getAppDataSource() {
 		return this.appDataSource;
 	}
+
+    /**
+     * UTILS
+     */
+
+    // Method to get the default system database based on database type
+    private getDefaultSystemDatabase(): string {
+        switch(this.databaseType) {
+            case 'postgres':
+                return 'postgres';
+            case 'mysql':
+            case 'mariadb':
+                return 'mysql';
+            case 'oracle':
+                return 'sys';
+            default:
+                throw new Error(`Unsupported database type: ${this.databaseType}`);
+        }
+    }
 }
 
 export default StorageBuilder;

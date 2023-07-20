@@ -1,3 +1,5 @@
+Sure, here's the updated README with the changes:
+
 # typeorm-test-helper
 
 typeorm-test-helper is a library designed to facilitate the process of managing test databases. It allows users to seamlessly set up, interact with, and tear down databases using TypeORM. This library aims to streamline testing services that interact with databases.
@@ -10,12 +12,12 @@ npm install typeorm-test-helper
 
 ## Usage
 
-To use the library, import the `StorageBuilder` class and instantiate it. Pass in your storage service constructor, a configuration object, and your database configuration:
+To use the library, import the `StorageBuilder` class and instantiate it. Pass in your storage service constructor, a configuration object, your database configuration, and an array of your entity classes:
 
 ```typescript
 import { StorageBuilder } from 'typeorm-test-helper';
 
-let storageBuilder = new StorageBuilder<MyStorageService>(MyStorageService, config, dbConfig);
+let storageBuilder = new StorageBuilder<MyStorageService>(MyStorageService, config, 'postgres', [MyEntity1, MyEntity2], '/path/to/your/migrations');
 ```
 
 You can then use your `StorageBuilder` instance to set up the test database:
@@ -38,7 +40,7 @@ await storageBuilder.teardown();
 
 ## Configuration
 
-The `StorageBuilder` class constructor requires four parameters:
+The `StorageBuilder` class constructor requires five parameters:
 
 - `storageServiceConstructor`: A constructor function for your storage service class. This should be a new instance of your storage service class, which will be initialized with a `DataSource` and your provided configuration.
 
@@ -46,15 +48,17 @@ The `StorageBuilder` class constructor requires four parameters:
 
 - `databaseType`: A string indicating the type of database being used. Options include 'postgres', 'mysql', 'mariadb', 'sqlite', 'mssql', and 'oracle'.
 
-- `entities`: An array of Functions. Each function should represent a entity class that will be used by TypeORM.
+- `entities`: An array of Functions. Each function should represent an entity class that will be used by TypeORM.
+
+- `migrationsPath`: A string representing the relative or absolute path to your migrations files.
 
 Example of a `StorageBuilder` instance:
 
 ```typescript
-let storageBuilder = new StorageBuilder<MyStorageService>(MyStorageService, config, 'postgres', [MyEntity1, MyEntity2]);
+let storageBuilder = new StorageBuilder<MyStorageService>(MyStorageService, config, 'postgres', [MyEntity1, MyEntity2], '/path/to/your/migrations');
 ```
 
-The `config` object should contain all necessary configurations for your storage service. The `entities` array should include all the entity classes that your application uses, ensuring they are provided dynamically while using the library.
+The `config` object should contain all necessary configurations for your storage service. The `entities` array should include all the entity classes that your application uses, ensuring they are provided dynamically while using the library. The `migrationsPath` should be the path to your migration files.
 
 The created `StorageBuilder` instance can then be used to manage your test databases.
 
@@ -64,7 +68,7 @@ The created `StorageBuilder` instance can then be used to manage your test datab
 
 - The library creates and deletes databases as needed for testing. The test database's name is automatically generated to prevent collisions.
 
-- Ensure that the database system connection details are correctly provided in the `dbConfig` object.
+- Ensure that the database system connection details are correctly provided in the `config` object.
 
 - Make sure to provide the entities used by TypeORM dynamically when using the library.
 

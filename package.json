@@ -1,6 +1,6 @@
 {
   "name": "typeorm-test-helper",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Testing database is a utility library that simplifies the testing process for services that interact with a database using TypeORM. It provides a convenient way to set up and tear down a test database, create the necessary data sources, and access the storage service for testing purposes.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
