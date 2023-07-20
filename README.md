@@ -60,11 +60,11 @@ The created `StorageBuilder` instance can then be used to manage your test datab
 
 ## Notes
 
-- This library assumes you have PostgreSQL installed and running on your machine.
+- This library can be used with the following databases: 'postgres', 'mysql', 'mariadb', 'sqlite', 'mssql', 'oracle'. It assumes that you have the selected database installed and running on your machine.
 
 - The library creates and deletes databases as needed for testing. The test database's name is automatically generated to prevent collisions.
 
-- Ensure that the PostgreSQL system connection details are correctly provided in the `dbConfig` object.
+- Ensure that the database system connection details are correctly provided in the `dbConfig` object.
 
 - Make sure to provide the entities used by TypeORM dynamically when using the library.
 
